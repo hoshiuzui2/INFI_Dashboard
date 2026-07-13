@@ -559,7 +559,8 @@
                   if (!empty($r['DueDate'])) {
                       try {
                           $d = new DateTimeImmutable(substr($r['DueDate'],0,10));
-                          $diff = (int)($d->diff($today)->format('%r%a'));
+                          <!-- $diff = (int)($d->diff($today)->format('%r%a')); -->
+                          $diff = (int)($today->diff($d)->format('%r%a'));
                           if ($diff >= 0 && $diff <= 30) {
                               $upcoming[] = ['Supplier'=>$r['SupplierName'] ?? $r['Supplier'] ?? '', 'Due'=>$d->format('Y-m-d'), 'Amount'=>floatval($r['MthInvBal1'] ?? $r['OrigInvValue'] ?? 0), 'Invoice'=>$r['Invoice'] ?? ''];
                           }
