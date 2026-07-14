@@ -12,19 +12,21 @@ class GrossProfitController extends Controller
     {
      //$year = $request->input('year');
      //$month = $request->input('month');
-     $year = $request->input('year') !== null ? (int) $request->input('year') : (int) date('Y');
-$month = $request->input('month') !== null ? (int) $request->input('month') : (int) date('n'); // 'n' represents 1-12
+    $year = $request->input('year') !== null ? (int) $request->input('year') : (int) date('Y');
+    $month = $request->input('month') !== null ? (int) $request->input('month') : (int) date('n'); // 'n' represents 1-12
 
-if ($year === '' || $year === null) {
-    $year = null;
-} else {
-    $year = (int) $year;
-}
-
- if ($month !== null && $month !== '') {
-        $month = (int) $month;
+ if (!$request->has('year')) {
+        $year = (int) date('Y');       // First load: default to current year
     } else {
-        $month = null;
+        $val = $request->input('year');
+        $year = ($val === null || $val === '') ? null : (int) $val; // "All" selected vs specific year
+    }
+    // 3. Resolve Month parameter
+    if (!$request->has('month')) {
+        $month = (int) date('n');      // First load: default to current month
+    } else {
+        $val = $request->input('month');
+        $month = ($val === null || $val === '') ? null : (int) $val; // "All Months" selected vs specific month
     }
 
 $rows = DB::table('dbo.vSummarySalesCongsMonthYear_Combined')
@@ -178,6 +180,9 @@ public function customerData(Request $request)
     $year = $request->input('year');
     $month = $request->input('month');
 
+    $year = ($year !== null && $year !== '' && $year !== 'null') ? (int) $year : null;
+    $month = ($month !== null && $month !== '' && $month !== 'null') ? (int) $month : null;
+
     \Log::info('Customer Data Request', [
         'year' => $year,
         'month' => $month
@@ -192,33 +197,34 @@ public function customerData(Request $request)
         $monthName = isset($monthNames[(int)$month]) ? $monthNames[(int)$month] : null;
 
         // Query the View directly and aggregate by Customer
-        $data = DB::table('vGrossProfitPerCustomer')
-            ->selectRaw("
-                Customer as CUSTOMER,
-                SUM(TotalSales) as sales,
-                SUM(Cogs) as cogs,
-                SUM(GP_Amount) as gp,
-                CASE 
-                    WHEN SUM(TotalSales) <> 0 
-                    THEN (SUM(GP_Amount) / SUM(TotalSales)) * 100 
-                    ELSE 0 
-                END as margin
-            ")
-            ->when($year, function ($q) use ($year) {
-                $q->where('Year', $year);
-            })
-            ->when($monthName, function ($q) use ($monthName) {
-                $q->where('Month', $monthName);
-            })
-            ->groupBy('Customer')
-            ->havingRaw('SUM(TotalSales) <> 0') // Only show customers with actual sales
-            ->orderByDesc('sales')
-            ->get();
+        $cacheKey = 'gp_customers_' . ($year ?? 'all') . '_' . ($month ?? 'all') . '_p' . request()->get('page', 1);
 
-        \Log::info('Customer Data Count', ['count' => $data->count()]);
+        $data = Cache::remember($cacheKey, 120, function () use ($year, $monthName) {
+            return DB::table('vGrossProfitPerCustomer')
+                ->selectRaw("
+                    Customer as CUSTOMER,
+                    SUM(TotalSales) as sales,
+                    SUM(Cogs) as cogs,
+                    SUM(GP_Amount) as gp,
+                    CASE 
+                        WHEN SUM(TotalSales) <> 0 
+                        THEN (SUM(GP_Amount) / SUM(TotalSales)) * 100 
+                        ELSE 0 
+                    END as margin
+                ")
+                ->when($year, function ($q) use ($year) {
+                    $q->where('Year', $year);
+                })
+                ->when($monthName, function ($q) use ($monthName) {
+                    $q->where('Month', $monthName);
+                })
+                ->groupBy('Customer')
+                ->havingRaw('SUM(TotalSales) <> 0')
+                ->orderByDesc('sales')
+                ->paginate(25);
+        });
 
-        // Transform the data to match frontend expectations
-        $transformed = $data->map(function ($r) {
+        $data->getCollection()->transform(function ($r) {
             return [
                 'CUSTOMER' => $r->CUSTOMER,
                 'sales' => (float) $r->sales,
@@ -228,13 +234,7 @@ public function customerData(Request $request)
             ];
         });
 
-        return response()->json([
-            'data' => $transformed,
-            'current_page' => 1,
-            'last_page' => 1,
-            'total' => $transformed->count(),
-            'per_page' => 25
-        ]);
+        return response()->json($data);
 
     } catch (\Exception $e) {
         \Log::error('Customer Data Error', [
@@ -252,6 +252,7 @@ public function categoryBreakdown(Request $request)
 {
     try {
         $year = $request->input('year');
+        //$year = ($year !== null && $year !== '' && $year !== 'null') ? (int) $year : null;
         $customer = $request->input('category');
 
         if (!$customer) {
@@ -330,6 +331,9 @@ public function productData(Request $request)
 {
     $year = $request->input('year');
     $month = $request->input('month');
+
+    $year = ($year !== null && $year !== '' && $year !== 'null') ? (int) $year : null;
+    $month = ($month !== null && $month !== '' && $month !== 'null') ? (int) $month : null;
 
     \Log::info('Product Data Request', [
         'year' => $year,
@@ -415,6 +419,9 @@ public function productMonthly(Request $request)
     $product = $request->input('product');
     $year = $request->input('year');
 
+    $year = ($year !== null && $year !== '' && $year !== 'null') ? (int) $year : null;
+        $month = ($month !== null && $month !== '' && $month !== 'null') ? (int) $month : null;
+
     \Log::info('Product Monthly Request', [
         'product' => $product,
         'year' => $year
@@ -480,6 +487,10 @@ public function agentData(Request $request)
 
         $year = $request->input('year');
         $month = $request->input('month');
+
+        $year = ($year !== null && $year !== '' && $year !== 'null') ? (int) $year : null;
+        $month = ($month !== null && $month !== '' && $month !== 'null') ? (int) $month : null;
+
         $query = DB::table('dbo.vSummarySalesCongsMonthYear_01_Agent_01')
             ->selectRaw("
                 AGENT,
@@ -494,7 +505,8 @@ public function agentData(Request $request)
             })
 
             ->when($month, function ($q) use ($month) {
-    $q->whereRaw("CAST([MONTH] AS INT) = ?", [$month]);
+    //$q->whereRaw("CAST([MONTH] AS INT) = ?", [$month]);
+    $q->whereRaw("ISNUMERIC([MONTH]) = 1 AND CAST([MONTH] AS INT) = ?", [$month]);
 });
         
         // ✅ MAIN DATA
@@ -514,7 +526,8 @@ $rows = Cache::remember($key, 120, function () use ($query) {
         $totalSales = DB::table('vSummarySalesCongsMonthYear_01_Agent_01')
             ->when($year, fn($q) => $q->whereRaw('[YEAR] = ?', [$year]))
  ->when($month, function ($q) use ($month) {
-    $q->whereRaw("CAST([MONTH] AS INT) = ?", [$month]);
+    //$q->whereRaw("CAST([MONTH] AS INT) = ?", [$month]);
+    $q->whereRaw("ISNUMERIC([MONTH]) = 1 AND CAST([MONTH] AS INT) = ?", [$month]);
 })
             ->sum(DB::raw('COALESCE(SALES,0)'));
 

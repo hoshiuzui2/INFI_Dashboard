@@ -1243,9 +1243,10 @@ hideLoader();
 
    let rank = (data.current_page - 1) * 25 + 1;
 
+let html = '';
 data.data.forEach(r => {
 
-body.innerHTML += `
+html += `
 <tr class="customer-row" data-customer="${r.CUSTOMER}" style="cursor:pointer">
 
 <td class="text-muted">${rank++}</td>
@@ -1274,6 +1275,8 @@ ${r.margin}%
 `;
 
 });
+
+body.innerHTML = html;
 
 const prevPage = Math.max(1, data.current_page - 1);
 const nextPage = Math.min(data.last_page, data.current_page + 1);
