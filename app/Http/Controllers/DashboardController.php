@@ -106,8 +106,11 @@ $formattedAP = $this->formatCurrency($apTotal);
         if (function_exists('set_time_limit')) { @set_time_limit(180); }
         @ini_set('max_execution_time', '180');
 
-        $year = $request->input('year');
-        $month = $request->input('month');
+        //$year = $request->input('year'); 
+        //$month = $request->input('month');
+        $year = $request->input('year', date('Y'));
+        $month = $request->input('month', date('n')); // 'n' represents month index 1-12 without leading zeros
+
 // =====================================================
 // DIVISION LEVEL 1 — GET DIVISIONS
 // =====================================================

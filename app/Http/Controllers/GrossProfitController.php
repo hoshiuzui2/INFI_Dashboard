@@ -10,8 +10,10 @@ class GrossProfitController extends Controller
 {
     public function index(Request $request)
     {
-     $year = $request->input('year');
-     $month = $request->input('month');
+     //$year = $request->input('year');
+     //$month = $request->input('month');
+     $year = $request->input('year') !== null ? (int) $request->input('year') : (int) date('Y');
+$month = $request->input('month') !== null ? (int) $request->input('month') : (int) date('n'); // 'n' represents 1-12
 
 if ($year === '' || $year === null) {
     $year = null;
